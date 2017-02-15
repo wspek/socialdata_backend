@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 from enum import Enum
 
 __author__ = "waldo"
-__project__ = "SocialCrawler"
+__project__ = "prj_socialdata_backend"
 
 
 class SocialMedia(Enum):
