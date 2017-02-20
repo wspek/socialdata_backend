@@ -1,0 +1,19 @@
+# No .gitignore itself
+# .gitignore
+
+# No .pyc files
+*.pyc
+
+# No .idea/ folder
+.idea/
+
+# No merge files
+*_BACKUP_*
+*_BASE_*
+*_LOCAL_*
+*_REMOTE_*
+
+# Other folders to ignore
+*.csv
+output/
+test/
