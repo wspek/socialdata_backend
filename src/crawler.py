@@ -6,11 +6,14 @@ import csv
 import os
 import re
 import mechanize
+import logging
 from bs4 import BeautifulSoup
 from enum import Enum
 
 __author__ = "waldo"
 __project__ = "prj_socialdata_backend"
+
+logger = logging.getLogger(__name__)
 
 
 class SocialMedia(Enum):
@@ -36,6 +39,7 @@ class Crawler(object):
     def get_contacts_file(self, profile_id, file_format,
                           file_path='./friends.csv'):  # TODO Return file handle instead of path
         contact_list = self._current_session.get_contact_list(profile_id)
+
         return self.list_to_file(contact_list, file_format, file_path)
 
     def close_session(self):
@@ -43,6 +47,8 @@ class Crawler(object):
 
     @staticmethod
     def list_to_file(contact_list, file_format, file_path):
+        logger.debug("Converting contact list to file.")
+
         if file_format == FileFormat.CSV:
             with open(file_path, 'wb') as csvfile:
                 file_path = os.path.realpath(csvfile.name)
@@ -51,6 +57,10 @@ class Crawler(object):
                 writer.writeheader()
                 for contact in contact_list:
                     writer.writerow({k: v.encode('utf8') for k, v in contact.items()})
+
+                logger.debug("File created.")
+
+            logger.debug("File may or may not be created. Check previous log messages.")
 
             return file_path
 
@@ -90,8 +100,12 @@ class SocialMedium(object):
         rolodex = Rolodex(self.browser, self.login_id, self.start_time,
                           profile_name)  # TODO: Write Singleton wrapper (Sessiion) for browser instead of passing around. You can put multiple fields in Session, so you don't have to pass them around either
 
+        logger.debug("Building contact list.")
+
         for page_list in rolodex:
             contact_list.extend(page_list)
+
+        logger.debug("Returning contact list.")
 
         return contact_list
 
@@ -109,24 +123,36 @@ class SocialMedium(object):
 
 class Rolodex(object):
     def __init__(self, browser, login_id, start_time, profile_name):
+        logger.debug("Creating rolodex.")
+
         self.browser = browser
         self.login_id = login_id
         self.start_time = start_time
         self.contact_url = 'https://www.facebook.com/{0}/friends'.format(profile_name)
         self._page_number = 1
 
+        logger.debug("Rolodex created.")
+
     def __iter__(self):
         return self
 
     def next(self):
         if self._page_number == 1:
+            logger.debug("Getting first page.")
+
             page = self.browser.open(self.contact_url).read()
             self.contact_url = self.compose_url_from_html(page)
             contacts = self.extract_contacts_from_html(page)
+
+            logger.debug("First page retrieved.")
         else:
+            logger.debug("Getting next page.")
+
             page = self.browser.open(self.contact_url).read().decode('unicode_escape')
             self.contact_url = self.compose_url_from_script(page)
             contacts = self.extract_contacts_from_script(page)
+
+            logger.debug("Next page retrieved.")
         if self.contact_url is None:
             raise StopIteration
 
