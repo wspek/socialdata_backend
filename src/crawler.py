@@ -7,6 +7,7 @@ import os
 import re
 import mechanize
 import logging
+import time
 from bs4 import BeautifulSoup
 from enum import Enum
 
@@ -243,6 +244,13 @@ class Rolodex(object):
         return composed_url
 
     def extract_contacts_from_html(self, html):
+        # Debug code for timeout bug
+        logger.debug("Attempting to extract contacts from HTML.")
+        file_path = '../logs/html/' + time.strftime("%Y%m%d-%H%M%S") + '.txt'
+        with open(file_path, 'w') as html_file:
+            html_file.write(html)
+            logger.debug("Wrote HTML to file '{0}'.".format(file_path))
+
         contacts = []
         soup = BeautifulSoup(html, "lxml")
         selection = soup.find_all('code')
