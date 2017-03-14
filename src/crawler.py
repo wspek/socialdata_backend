@@ -37,7 +37,7 @@ class Crawler(object):
             self._current_session = SocialMedium(user_name, password)  # TODO: Change name SocialMedium man...
 
     def get_contacts_file(self, profile_id, file_format,
-                          file_path='./friends.csv'):  # TODO Return file handle instead of path
+                          file_path='./contacts.csv'):  # TODO Return file handle instead of path
         contact_list = self._current_session.get_contact_list(profile_id)
 
         return self.list_to_file(contact_list, file_format, file_path)
@@ -141,10 +141,16 @@ class Rolodex(object):
             logger.debug("Getting first page.")
 
             page = self.browser.open(self.contact_url).read()
-            self.contact_url = self.compose_url_from_html(page)
-            contacts = self.extract_contacts_from_html(page)
 
             logger.debug("First page retrieved.")
+
+            self.contact_url = self.compose_url_from_html(page)
+
+            logger.debug("Contact URL composed.")
+
+            contacts = self.extract_contacts_from_html(page)
+
+            logger.debug("Contacts extracted. Moving on.")
         else:
             logger.debug("Getting next page.")
 
