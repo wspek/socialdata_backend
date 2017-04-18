@@ -54,7 +54,7 @@ class Crawler(object):
             with open(file_path, 'wb') as csvfile:
                 file_path = os.path.realpath(csvfile.name)
                 csvfile.write(u'\ufeff'.encode('utf8'))
-                writer = csv.DictWriter(csvfile, ["name", "uri"])
+                writer = csv.DictWriter(csvfile, ["name", "uri", "profile_id"])
                 writer.writeheader()
                 for contact in contact_list:
                     writer.writerow({k: v.encode('utf8') for k, v in contact.items()})
@@ -246,7 +246,8 @@ class Rolodex(object):
     def extract_contacts_from_html(self, html):
         # Debug code for timeout bug
         logger.debug("Attempting to extract contacts from HTML.")
-        file_path = '/media/waldo/DATA-SHARE/Code/prj_socialdata_backend/logs/html/' + time.strftime("%Y%m%d-%H%M%S") + '.txt'
+        file_path = '/media/waldo/DATA-SHARE/Code/prj_socialdata_backend/logs/html/' + time.strftime(
+            "%Y%m%d-%H%M%S") + '.txt'
         logger.debug("File path: '{0}'.".format(file_path))
         with open(file_path, 'w') as html_file:
             html_file.write(html)
@@ -262,7 +263,11 @@ class Rolodex(object):
                                                                         "data-gt": re.compile('.*')}, )
                 for elem in results:
                     link = elem.attrs['href'].replace("\\", "")
-                    contacts.append({"name": elem.contents[0], "uri": link})
+                    try:  # First try to see if the id is hidden in the url, like https://www.facebook.com/profile.php?id=100005592845863
+                        profile_id = re.search(r'profile\.php\?id=(.*?)&', link).group(1)
+                    except AttributeError as e:  # Else the id is not a number but a string
+                        profile_id = re.search(r'www\.facebook\.com/(.*)\?', link).group(1)
+                    contacts.append({"name": elem.contents[0], "uri": link, "profile_id": profile_id})
 
         return contacts
 
@@ -275,6 +280,10 @@ class Rolodex(object):
                                                                     "data-gt": re.compile('.*')})
             for elem in results:
                 link = elem.attrs['href'].replace("\\", "")
-                contacts.append({"name": elem.contents[0], "uri": link})
+                try:  # First try to see if the id is hidden in the url, like https://www.facebook.com/profile.php?id=100005592845863
+                    profile_id = re.search(r'profile\.php\?id=(.*?)&', link).group(1)
+                except AttributeError as e: # Else the id is not a number but a string
+                    profile_id = re.search(r'www\.facebook\.com/(.*)\?', link).group(1)
+                contacts.append({"name": elem.contents[0], "uri": link, "profile_id": profile_id})
 
         return contacts
