@@ -8,6 +8,7 @@ import re
 import mechanize
 import logging
 import time
+import pdb
 from bs4 import BeautifulSoup
 from enum import Enum
 
@@ -40,6 +41,13 @@ class Crawler(object):
     def get_contacts_file(self, profile_id, file_format,
                           file_path='./contacts.csv'):  # TODO Return file handle instead of path
         contact_list = self._current_session.get_contact_list(profile_id)
+
+        return self.list_to_file(contact_list, file_format, file_path)
+
+    def get_mutual_contacts_file(self, profile_id1, profile_id2, file_format,
+                                 file_path='./mutual_contacts.csv'):  # TODO Return file handle instead of path
+
+        contact_list = self._current_session.get_mutual_contact_list(profile_id1, profile_id2)
 
         return self.list_to_file(contact_list, file_format, file_path)
 
@@ -113,6 +121,33 @@ class SocialMedium(object):
         logger.debug("Returning contact list.")
 
         return contact_list
+
+    def get_mutual_contact_list(self, profile_id1, profile_id2):
+        logger.debug("Building contact list for ID1.")
+
+        # Get two dictionaries representing the contact lists of both accounts
+        contacts_list_id1 = self.get_contact_list(profile_id1)
+        contacts_list_id2 = self.get_contact_list(profile_id2)
+
+        # Extract the profile IDs of both contact lists
+        contact_ids_id1 = [d['profile_id'] for d in contacts_list_id1]
+        contact_ids_id2 = [d['profile_id'] for d in contacts_list_id2]
+
+        # Make an intersection of the profile IDs
+        contact_set_id1 = set(contact_ids_id1)
+        contact_set_id2 = set(contact_ids_id2)
+        mutual_contacts = contact_set_id1.intersection(contact_set_id2)
+
+        # For each ID in the intersection, obtain the original entry in the original dictionary
+        # TODO: Understand how this really works
+        mutual_contact_list = []
+        for contact in mutual_contacts:
+            entry = (item for item in contacts_list_id1 if item['profile_id'] == contact).next()
+            mutual_contact_list.append(entry)
+
+        logger.debug("Returning mutual contact list.")
+
+        return mutual_contact_list
 
     def _extract_login_data(self, html):
         pattern = re.compile("\"ACCOUNT_ID\":\"(\d+?)\"")
