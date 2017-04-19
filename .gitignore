@@ -8,12 +8,13 @@
 .idea/
 
 # No merge files
-*_BACKUP_*
-*_BASE_*
-*_LOCAL_*
-*_REMOTE_*
+*BACKUP*
+*BASE*
+*LOCAL*
+*REMOTE*
 
 # Other folders to ignore
 *.csv
 output/
 test/
+logs/

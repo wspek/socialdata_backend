@@ -277,7 +277,7 @@ class Rolodex(object):
                     try:  # First try to see if the id is hidden in the url, like https://www.facebook.com/profile.php?id=100005592845863
                         profile_id = re.search(r'profile\.php\?id=(.*?)&', link).group(1)
                     except AttributeError as e:  # Else the id is not a number but a string
-                        profile_id = re.search(r'www\.facebook\.com/(.*)\?', link).group(1)
+                        profile_id = re.search(r'\.facebook\.com/(.*)\?', link).group(1)
                     contacts.append({"name": elem.contents[0], "uri": link, "profile_id": profile_id})
 
         return contacts
@@ -294,7 +294,7 @@ class Rolodex(object):
                 try:  # First try to see if the id is hidden in the url, like https://www.facebook.com/profile.php?id=100005592845863
                     profile_id = re.search(r'profile\.php\?id=(.*?)&', link).group(1)
                 except AttributeError as e:  # Else the id is not a number but a string
-                    profile_id = re.search(r'www\.facebook\.com/(.*)\?', link).group(1)
+                    profile_id = re.search(r'\.facebook\.com/(.*)\?', link).group(1)
                 contacts.append({"name": elem.contents[0], "uri": link, "profile_id": profile_id})
 
         return contacts
