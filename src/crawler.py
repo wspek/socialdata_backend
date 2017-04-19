@@ -54,11 +54,11 @@ class Crawler(object):
             with open(file_path, 'wb') as csvfile:
                 file_path = os.path.realpath(csvfile.name)
                 csvfile.write(u'\ufeff'.encode('utf8'))
-                writer = csv.DictWriter(csvfile, ["name", "uri", "profile_id"])
+                writer = csv.DictWriter(csvfile, ["name", "profile_id", "uri"])
                 writer.writeheader()
 
                 if not contact_list:
-                    writer.writerow({"name": "No viewable contacts available.", "uri": "", "profile_id": ""})
+                    writer.writerow({"name": "No viewable contacts available.", "profile_id": "", "uri": ""})
                 else:
                     for contact in contact_list:
                         writer.writerow({k: v.encode('utf8') for k, v in contact.items()})
