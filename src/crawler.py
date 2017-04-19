@@ -254,10 +254,7 @@ class Rolodex(object):
     def extract_contacts_from_html(self, html):
         # Debug code for timeout bug TODO
         logger.debug("Attempting to extract contacts from HTML.")
-
-        file_path = '/media/waldo/DATA-SHARE/Code/prj_socialdata_backend/logs/html/' + time.strftime(
-            "%Y%m%d-%H%M%S") + '.txt'
-
+        file_path = '/var/tmp/' + time.strftime("%Y%m%d-%H%M%S") + '.txt'
         logger.debug("File path: '{0}'.".format(file_path))
 
         with open(file_path, 'w') as html_file:
