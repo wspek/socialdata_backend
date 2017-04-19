@@ -56,8 +56,12 @@ class Crawler(object):
                 csvfile.write(u'\ufeff'.encode('utf8'))
                 writer = csv.DictWriter(csvfile, ["name", "uri", "profile_id"])
                 writer.writeheader()
-                for contact in contact_list:
-                    writer.writerow({k: v.encode('utf8') for k, v in contact.items()})
+
+                if not contact_list:
+                    writer.writerow({"name": "No viewable contacts available.", "uri": "", "profile_id": ""})
+                else:
+                    for contact in contact_list:
+                        writer.writerow({k: v.encode('utf8') for k, v in contact.items()})
 
                 logger.debug("File created.")
 
@@ -147,11 +151,11 @@ class Rolodex(object):
 
             self.contact_url = self.compose_url_from_html(page)
 
-            logger.debug("Contact URL composed.")
+            logger.debug("Attempt to construct contact URL finished.")
 
             contacts = self.extract_contacts_from_html(page)
 
-            logger.debug("Contacts extracted. Moving on.")
+            logger.debug("Attempt to extract contacts. Moving on.")
         else:
             logger.debug("Getting next page.")
 
@@ -160,6 +164,7 @@ class Rolodex(object):
             contacts = self.extract_contacts_from_script(page)
 
             logger.debug("Next page retrieved.")
+
         if self.contact_url is None:
             raise StopIteration
 
@@ -178,6 +183,9 @@ class Rolodex(object):
                     profile_id, research_id, number = match.groups()[0].split(':')
                     cursor = match.groups()[1]
                     break
+        else:
+            logger.info("This profile has no viewable friends.")
+            return None
 
         composed_url = \
             'https://www.facebook.com/ajax/pagelet/generic.php/AllFriendsAppCollectionPagelet?' \
@@ -244,11 +252,14 @@ class Rolodex(object):
         return composed_url
 
     def extract_contacts_from_html(self, html):
-        # Debug code for timeout bug
+        # Debug code for timeout bug TODO
         logger.debug("Attempting to extract contacts from HTML.")
+
         file_path = '/media/waldo/DATA-SHARE/Code/prj_socialdata_backend/logs/html/' + time.strftime(
             "%Y%m%d-%H%M%S") + '.txt'
+
         logger.debug("File path: '{0}'.".format(file_path))
+
         with open(file_path, 'w') as html_file:
             html_file.write(html)
             logger.debug("Wrote HTML to file '{0}'.".format(file_path))
@@ -282,7 +293,7 @@ class Rolodex(object):
                 link = elem.attrs['href'].replace("\\", "")
                 try:  # First try to see if the id is hidden in the url, like https://www.facebook.com/profile.php?id=100005592845863
                     profile_id = re.search(r'profile\.php\?id=(.*?)&', link).group(1)
-                except AttributeError as e: # Else the id is not a number but a string
+                except AttributeError as e:  # Else the id is not a number but a string
                     profile_id = re.search(r'www\.facebook\.com/(.*)\?', link).group(1)
                 contacts.append({"name": elem.contents[0], "uri": link, "profile_id": profile_id})
 
