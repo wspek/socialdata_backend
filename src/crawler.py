@@ -424,7 +424,7 @@ class Rolodex(object):
                 try:
                     # Remove strange <\/a><\/div> like string from the end. This is due to the HTML parser.
                     name = re.sub('<.*$', '', elem.contents[0])
-                    logger.debug("name: {0}".format(name))
+                    # logger.debug("name: {0}".format(name))
                     contacts.append({"name": name, "uri": link, "profile_id": profile_id})
                 except Exception as e:
                     # pdb.set_trace()
