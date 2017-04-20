@@ -110,36 +110,43 @@ class SocialMedium(object):
     def get_contact_list(self, profile_name):
         contact_list = []
 
+        logger.debug("Building contact list.")
+
         rolodex = Rolodex(self.browser, self.login_id, self.start_time,
                           profile_name)  # TODO: Write Singleton wrapper (Sessiion) for browser instead of passing around. You can put multiple fields in Session, so you don't have to pass them around either
 
-        logger.debug("Building contact list.")
+        logger.debug("Browsing contact list.")
 
-        for page_list in rolodex:
+        for page_nr, page_list in enumerate(rolodex):
+            logger.debug("Page {0}.".format(page_nr + 1))
             contact_list.extend(page_list)
 
-        logger.debug("Returning contact list.")
+        logger.debug("Finished going through rolodex. Returning contact list.")
 
         return contact_list
 
     def get_mutual_contact_list(self, profile_id1, profile_id2):
-        logger.debug("Building contact list for ID1.")
-
         # Get two dictionaries representing the contact lists of both accounts
+        logger.debug("Building contact list for ID1.")
         contacts_list_id1 = self.get_contact_list(profile_id1)
+        logger.debug("Building contact list for ID2.")
         contacts_list_id2 = self.get_contact_list(profile_id2)
 
         # Extract the profile IDs of both contact lists
+        logger.debug("Extracting profile IDs.")
         contact_ids_id1 = [d['profile_id'] for d in contacts_list_id1]
         contact_ids_id2 = [d['profile_id'] for d in contacts_list_id2]
 
         # Make an intersection of the profile IDs
+        logger.debug("Calculating intersection.")
         contact_set_id1 = set(contact_ids_id1)
         contact_set_id2 = set(contact_ids_id2)
         mutual_contacts = contact_set_id1.intersection(contact_set_id2)
 
         # For each ID in the intersection, obtain the original entry in the original dictionary
         # TODO: Understand how this really works
+        logger.debug("Creating mutual contacts list.")
+
         mutual_contact_list = []
         for contact in mutual_contacts:
             entry = (item for item in contacts_list_id1 if item['profile_id'] == contact).next()
@@ -178,29 +185,38 @@ class Rolodex(object):
 
     def next(self):
         if self._page_number == 1:
-            logger.debug("Getting first page.")
+            logger.debug("Opening browser to get first page.")
 
             page = self.browser.open(self.contact_url).read()
 
-            logger.debug("First page retrieved.")
+            logger.debug("First page retrieved (HTML).")
 
             self.contact_url = self.compose_url_from_html(page)
 
             logger.debug("Attempt to construct contact URL finished.")
+            logger.debug("Attempting to extract contacts from HTML.")
 
             contacts = self.extract_contacts_from_html(page)
 
             logger.debug("Attempt to extract contacts. Moving on.")
         else:
-            logger.debug("Getting next page.")
+            logger.debug("Opening browser to get next page.")
 
             page = self.browser.open(self.contact_url).read().decode('unicode_escape')
+
+            logger.debug("Next page retrieved (Javascript).")
+
             self.contact_url = self.compose_url_from_script(page)
+
+            logger.debug("Attempt to construct contact URL finished.")
+            logger.debug("Attempting to extract contacts from Javascript.")
+
             contacts = self.extract_contacts_from_script(page)
 
             logger.debug("Next page retrieved.")
 
         if self.contact_url is None:
+            logger.debug("The contact URL is None. Stop iterations.")
             raise StopIteration
 
         self._page_number += 1
@@ -208,17 +224,32 @@ class Rolodex(object):
 
     def compose_url_from_html(self, html):
         soup = BeautifulSoup(html, "lxml")
+
+        logger.debug("Trying to find all <script> elements in the retrieved HTML.")
+
         selection = soup.find_all('script')
-        for script in selection:
+        for nr, script in enumerate(selection):
+            logger.debug("Analyzing <script> element #{0}".format(nr))
+
             if len(script.contents) > 0:
+                logger.debug("The script has length > 0. Attempting to pattern match.")
+
                 pattern = re.compile(
                     "TimelineAppCollection\",\"enableContentLoader\",.*\"pagelet_timeline_app_collection_(.*?)\".*?\},\"(.*?)\"")
                 match = pattern.search(script.contents[0])
                 if match:
+                    logger.debug("The pattern matched: match.groups()[0] == {0}".format(match.groups()[0]))
+                    logger.debug("Continuing to extract elements.")
+
                     profile_id, research_id, number = match.groups()[0].split(':')
                     cursor = match.groups()[1]
+
+                    logger.debug(
+                        "profile_id == {0}, research_id == {1}, number == {2}".format(profile_id, research_id, number))
+                    logger.debug("Breaking out of loop")
                     break
         else:
+            logger.debug("Finished go through script without finding matches.")
             logger.info("This profile has no viewable friends.")
             return None
 
@@ -247,15 +278,25 @@ class Rolodex(object):
                 .format(profile_id, research_id, number, cursor, profile_id, self.login_id, profile_id, self.start_time,
                         self.login_id)
 
+        logger.debug("URL for next iteration composed.")
+
         return composed_url
 
     def compose_url_from_script(self, script):  # DRY !
+        logger.debug("Trying to match pattern in the retrieved Javascript.")
+
         pattern = re.compile(
             "TimelineAppCollection\",\"enableContentLoader\",.*\"pagelet_timeline_app_collection_(.*?)\".*?\},\"(.*?)\"")
         match = pattern.search(script)
         if match:
+            logger.debug("The pattern matched: match.groups()[0] == {0}".format(match.groups()[0]))
+            logger.debug("Continuing to extract elements.")
+
             profile_id, research_id, number = match.groups()[0].split(':')
             cursor = match.groups()[1]
+
+            logger.debug("profile_id == {0}, research_id == {1}, number == {2}".format(profile_id, research_id, number))
+
         else:
             return None
 
@@ -284,12 +325,14 @@ class Rolodex(object):
                 .format(profile_id, research_id, number, cursor, profile_id, self.login_id, profile_id, self.start_time,
                         self.login_id)
 
+        logger.debug("URL for next iteration composed.")
+
         return composed_url
 
     def extract_contacts_from_html(self, html):
         # Debug code for timeout bug TODO
         logger.debug("Attempting to extract contacts from HTML.")
-        file_path = '/var/tmp/' + time.strftime("%Y%m%d-%H%M%S") + '.txt'
+        file_path = '/var/tmp/' + time.strftime("%Y%m%d-%H%M%S") + '_html.txt'
         logger.debug("File path: '{0}'.".format(file_path))
 
         with open(file_path, 'w') as html_file:
@@ -298,35 +341,80 @@ class Rolodex(object):
 
         contacts = []
         soup = BeautifulSoup(html, "lxml")
+
+        logger.debug("Trying to find all <code> elements in the retrieved HTML.")
+
         selection = soup.find_all('code')
-        for item in selection:
+        for nr, item in enumerate(selection):
+            logger.debug("Analyzing <code> element #{0}".format(nr))
+
             if len(item.contents) > 0:
+                logger.debug("The item contents has length > 0. Attempting to pattern match.")
+
                 comment = item.contents[0]
                 results = BeautifulSoup(comment, "lxml").find_all('a', {"data-hovercard-prefer-more-content-show": "1",
                                                                         "data-gt": re.compile('.*')}, )
-                for elem in results:
+                for result_nr, elem in enumerate(results):
+                    logger.debug("Match! Processing result #{0}".format(result_nr))
+
                     link = elem.attrs['href'].replace("\\", "")
                     try:  # First try to see if the id is hidden in the url, like https://www.facebook.com/profile.php?id=100005592845863
                         profile_id = re.search(r'profile\.php\?id=(.*?)&', link).group(1)
                     except AttributeError as e:  # Else the id is not a number but a string
                         profile_id = re.search(r'\.facebook\.com/(.*)\?', link).group(1)
+
+                    # logger.debug(
+                    #     "Elements extracted: name == {0}, profile_id == {1}, uri == {2}".format(elem.contents[0],
+                    #                                                                             profile_id, link))
+
+                    logger.debug("profile_id: {0}".format(profile_id))
+
                     contacts.append({"name": elem.contents[0], "uri": link, "profile_id": profile_id})
+
+                    logger.debug("Appended to contact list.")
+
+        logger.debug("Returning contacts.")
 
         return contacts
 
     def extract_contacts_from_script(self, script):
+        # Debug code for timeout bug TODO
+        logger.debug("Attempting to extract contacts from Javascript.")
+        file_path = '/var/tmp/' + time.strftime("%Y%m%d-%H%M%S") + '_js.txt'
+        logger.debug("File path: '{0}'.".format(file_path))
+
+        with open(file_path, 'w') as js_file:
+            # js_file.write(script)
+            logger.debug("TODO Wrote HTML to file '{0}'.".format(file_path))
+
+        logger.debug("Attempting to pattern match: 'payload\":\"(.*)\",\"jsmods\"'")
+
         contacts = []
         pattern = re.compile("payload\":\"(.*)\",\"jsmods\"")
         html = re.findall(pattern, script)
         if len(html) > 0:
+            logger.debug("The item contents has length > 0. Attempting to pattern match more.")
+
             results = BeautifulSoup(html[0], "lxml").find_all('a', {"data-hovercard-prefer-more-content-show": "1",
                                                                     "data-gt": re.compile('.*')})
-            for elem in results:
+            for result_nr, elem in enumerate(results):
+                logger.debug("Match! Processing result #{0}".format(result_nr))
+
                 link = elem.attrs['href'].replace("\\", "")
                 try:  # First try to see if the id is hidden in the url, like https://www.facebook.com/profile.php?id=100005592845863
                     profile_id = re.search(r'profile\.php\?id=(.*?)&', link).group(1)
                 except AttributeError as e:  # Else the id is not a number but a string
                     profile_id = re.search(r'\.facebook\.com/(.*)\?', link).group(1)
+
+                # logger.debug(
+                #     "Elements extracted: name == {0}, profile_id == {1}, uri == {2}".format(elem.contents[0],
+                #                                                                             profile_id, link))
+                logger.debug("profile_id: {0}".format(profile_id))
+
                 contacts.append({"name": elem.contents[0], "uri": link, "profile_id": profile_id})
+
+                logger.debug("Appended to contact list.")
+
+        logger.debug("Returning contacts.")
 
         return contacts
