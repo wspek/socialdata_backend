@@ -223,7 +223,7 @@ class Rolodex(object):
         return contacts
 
     def compose_url_from_html(self, html):
-        soup = BeautifulSoup(html, "lxml")
+        soup = BeautifulSoup(html, "html5lib")
 
         logger.debug("Trying to find all <script> elements in the retrieved HTML.")
 
@@ -340,7 +340,7 @@ class Rolodex(object):
             logger.debug("Wrote HTML to file '{0}'.".format(file_path))
 
         contacts = []
-        soup = BeautifulSoup(html, "lxml")
+        soup = BeautifulSoup(html, "html5lib")
 
         logger.debug("Trying to find all <code> elements in the retrieved HTML.")
 
@@ -353,13 +353,14 @@ class Rolodex(object):
 
                 comment = item.contents[0]
 
-		logger.debug("Contents of item.contents[0] == {0}".format(comment))
+                # logger.debug("Contents of item.contents[0] == {0}".format(comment))
 
-                results = BeautifulSoup(comment, "lxml").find_all('a', {"data-hovercard-prefer-more-content-show": "1",
-                                                                        "data-gt": re.compile('.*')}, )
+                results = BeautifulSoup(comment, "html5lib").find_all('a',
+                                                                      {"data-hovercard-prefer-more-content-show": "1",
+                                                                       "data-gt": re.compile('.*')}, )
 
-		logger.debug("Results came in...")
-		logger.debug("Length of results: {0}".format(len(results)))
+                logger.debug("Results came in...")
+                logger.debug("Length of results: {0}".format(len(results)))
 
                 for result_nr, elem in enumerate(results):
                     logger.debug("Match! Processing result #{0}".format(result_nr))
@@ -402,8 +403,10 @@ class Rolodex(object):
         if len(html) > 0:
             logger.debug("The item contents has length > 0. Attempting to pattern match more.")
 
-            results = BeautifulSoup(html[0], "lxml").find_all('a', {"data-hovercard-prefer-more-content-show": "1",
-                                                                    "data-gt": re.compile('.*')})
+            # Different than the other parsers, this needs to be a HTML parser, otherwise we get an exception
+            results = BeautifulSoup(html[0], "html.parser").find_all('a',
+                                                                     {"data-hovercard-prefer-more-content-show": "1",
+                                                                      "data-gt": re.compile('.*')})
             for result_nr, elem in enumerate(results):
                 logger.debug("Match! Processing result #{0}".format(result_nr))
 
@@ -418,7 +421,14 @@ class Rolodex(object):
                 #                                                                             profile_id, link))
                 logger.debug("profile_id: {0}".format(profile_id))
 
-                contacts.append({"name": elem.contents[0], "uri": link, "profile_id": profile_id})
+                try:
+                    # Remove strange <\/a><\/div> like string from the end. This is due to the HTML parser.
+                    name = re.sub('<.*$', '', elem.contents[0])
+                    logger.debug("name: {0}".format(name))
+                    contacts.append({"name": name, "uri": link, "profile_id": profile_id})
+                except Exception as e:
+                    # pdb.set_trace()
+                    pass
 
                 logger.debug("Appended to contact list.")
 
