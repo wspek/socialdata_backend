@@ -11,6 +11,8 @@ import time
 import pdb
 from bs4 import BeautifulSoup
 from enum import Enum
+from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Font, PatternFill, Alignment
 
 __author__ = "waldo"
 __project__ = "prj_socialdata_backend"
@@ -38,27 +40,26 @@ class Crawler(object):
         if social_media is SocialMedia.FACEBOOK:
             self._current_session = SocialMedium(user_name, password)  # TODO: Change name SocialMedium man...
 
-    def get_contacts_file(self, profile_id, file_format,
-                          file_path='./contacts.csv'):  # TODO Return file handle instead of path
+    def get_contacts_file(self, profile_id, file_format, file_path):  # TODO Return file handle instead of path
         contact_list = self._current_session.get_contact_list(profile_id)
 
-        return self.list_to_file(contact_list, file_format, file_path)
+        return self._list_to_file(contact_list, file_format, file_path)
 
     def get_mutual_contacts_file(self, profile_id1, profile_id2, file_format,
-                                 file_path='./mutual_contacts.csv'):  # TODO Return file handle instead of path
+                                 file_path):  # TODO Return file handle instead of path
 
         contact_list = self._current_session.get_mutual_contact_list(profile_id1, profile_id2)
 
-        return self.list_to_file(contact_list, file_format, file_path)
+        return self._list_to_file(contact_list, file_format, file_path)
 
     def close_session(self):
         self._current_session.logout()
 
     @staticmethod
-    def list_to_file(contact_list, file_format, file_path):
-        logger.debug("Converting contact list to file.")
-
+    def _list_to_file(contact_list, file_format, file_path):
         if file_format == FileFormat.CSV:
+            logger.debug("Converting contact list to CSV file.")
+
             with open(file_path, 'wb') as csvfile:
                 file_path = os.path.realpath(csvfile.name)
                 csvfile.write(u'\ufeff'.encode('utf8'))
@@ -66,7 +67,7 @@ class Crawler(object):
                 writer.writeheader()
 
                 if not contact_list:
-                    writer.writerow({"name": "No viewable contacts available.", "profile_id": "", "uri": ""})
+                    writer.writerow({"name": "No contacts to show.", "profile_id": "", "uri": ""})
                 else:
                     for contact in contact_list:
                         writer.writerow({k: v.encode('utf8') for k, v in contact.items()})
@@ -74,8 +75,46 @@ class Crawler(object):
                 logger.debug("File created.")
 
             logger.debug("File may or may not be created. Check previous log messages.")
+        elif file_format == FileFormat.EXCEL:
+            logger.debug("Converting contact list to Excel file.")
 
-            return file_path
+            contact_book = ContactWorkbook()
+            contact_book.populate(["name", "profile_id", "uri"], contact_list)
+            file_path = os.path.realpath(file_path)
+            contact_book.save(file_path)
+
+            logger.debug("File created.")
+
+        return file_path
+
+
+class ContactWorkbook(object):
+    def __init__(self):
+        self.workbook = Workbook()
+        self.current_sheet = self.workbook.active
+        self.num_rows = 0
+        self.num_cols = 0
+
+    def load(self, filename):
+        self.workbook = load_workbook(filename=filename, data_only=True)
+        self.workbook.guess_types = True
+        self.current_sheet = self.workbook.active
+        self.num_rows = self.current_sheet.max_row
+        self.num_cols = self.current_sheet.max_column
+
+    def populate(self, headers, contact_list):
+        # Print the headers
+        self.current_sheet.append(headers)
+
+        if not contact_list:
+            self.current_sheet.append(["No contacts to show."])
+        else:
+            # For each contact, print a row in the workbook
+            for contact_dict in contact_list:
+                self.current_sheet.append([contact_dict["name"], contact_dict["profile_id"], contact_dict["uri"]])
+
+    def save(self, filepath):
+        self.workbook.save(filepath)
 
 
 class SocialMedium(object):

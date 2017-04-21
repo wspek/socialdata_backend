@@ -121,7 +121,7 @@ class CrawlerTool(CommandLineTool):
         # TODO: Data validation? Or does argparse take care of it already?
 
         self.socialcrawler.open_session(network, self.vargs["u"], self.vargs["p"])
-        contacts_file = self.socialcrawler.get_contacts_file(self.vargs["profile"], crawler.FileFormat.CSV)
+        contacts_file = self.socialcrawler.get_contacts_file(self.vargs["profile"], crawler.FileFormat.EXCEL, './contacts.xlsx')
 
         if contacts_file is not None:
             print "Contacts file available at '{0}'.".format(contacts_file)
