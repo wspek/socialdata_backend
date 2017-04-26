@@ -1,8 +1,2 @@
-### FEATURES ###
-- Web form
-- Tie project to backend
-- Move project to Pi
-- HTTPS
-
-### BUGS ###
-- Friend list is empty
+- Don't save files to disk first, but serve them from memory.
+- Concurrency test

@@ -37,7 +37,7 @@ class Crawler(object):
         self._current_session = None
 
     def open_session(self, social_media, user_name, password):
-        if social_media is SocialMedia.FACEBOOK:
+        if social_media == "FACEBOOK":
             self._current_session = SocialMedium(user_name, password)  # TODO: Change name SocialMedium man...
 
     def get_contacts_file(self, profile_id, file_format, file_path):  # TODO Return file handle instead of path
@@ -57,7 +57,7 @@ class Crawler(object):
 
     @staticmethod
     def _list_to_file(contact_list, file_format, file_path):
-        if file_format == FileFormat.CSV:
+        if file_format == "CSV":
             logger.debug("Converting contact list to CSV file.")
 
             with open(file_path, 'wb') as csvfile:
@@ -75,7 +75,7 @@ class Crawler(object):
                 logger.debug("File created.")
 
             logger.debug("File may or may not be created. Check previous log messages.")
-        elif file_format == FileFormat.EXCEL:
+        elif file_format == "EXCEL":
             logger.debug("Converting contact list to Excel file.")
 
             contact_book = ContactWorkbook()
