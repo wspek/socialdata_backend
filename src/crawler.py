@@ -21,6 +21,7 @@ __project__ = "prj_socialdata_backend"
 
 logger = logging.getLogger(__name__)
 
+# Test for git REMOVE ME
 
 class SocialMedia(Enum):
     ALL = 0
