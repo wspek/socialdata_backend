@@ -15,6 +15,7 @@
 
 # Other folders to ignore
 *.csv
+*.xlsx
 output/
 test/
 logs/
