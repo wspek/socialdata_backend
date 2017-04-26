@@ -14,6 +14,7 @@
 *REMOTE*
 
 # Other folders to ignore
+*.py.orig
 *.csv
 *.xlsx
 output/
