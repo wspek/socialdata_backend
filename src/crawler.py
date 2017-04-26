@@ -12,7 +12,9 @@ import pdb
 from bs4 import BeautifulSoup
 from enum import Enum
 from openpyxl import Workbook, load_workbook
+from openpyxl.cell import Cell
 from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.utils import get_column_letter
 
 __author__ = "waldo"
 __project__ = "prj_socialdata_backend"
@@ -43,20 +45,20 @@ class Crawler(object):
     def get_contacts_file(self, profile_id, file_format, file_path):  # TODO Return file handle instead of path
         contact_list = self._current_session.get_contact_list(profile_id)
 
-        return self._list_to_file(contact_list, file_format, file_path)
+        return self._list_to_file(contact_list[:1], contact_list[1:], file_format, file_path)
 
     def get_mutual_contacts_file(self, profile_id1, profile_id2, file_format,
                                  file_path):  # TODO Return file handle instead of path
 
         contact_list = self._current_session.get_mutual_contact_list(profile_id1, profile_id2)
 
-        return self._list_to_file(contact_list, file_format, file_path)
+        return self._list_to_file(contact_list[:2], contact_list[2:], file_format, file_path)
 
     def close_session(self):
         self._current_session.logout()
 
     @staticmethod
-    def _list_to_file(contact_list, file_format, file_path):
+    def _list_to_file(profile_list, contact_list, file_format, file_path):
         if file_format == FileFormat.CSV:
             logger.debug("Converting contact list to CSV file.")
 
@@ -64,8 +66,16 @@ class Crawler(object):
                 file_path = os.path.realpath(csvfile.name)
                 csvfile.write(u'\ufeff'.encode('utf8'))
                 writer = csv.DictWriter(csvfile, ["name", "profile_id", "uri"])
-                writer.writeheader()
 
+                # Write the data belonging to the profiles being researched
+                for contact in profile_list:
+                    writer.writerow({k: v.encode('utf8') for k, v in contact.items()})
+
+                # Write an empty row
+                writer.writerow({"name": "", "profile_id": "", "uri": ""})
+
+                # Write the actual contacts
+                writer.writeheader()
                 if not contact_list:
                     writer.writerow({"name": "No contacts to show.", "profile_id": "", "uri": ""})
                 else:
@@ -79,7 +89,16 @@ class Crawler(object):
             logger.debug("Converting contact list to Excel file.")
 
             contact_book = ContactWorkbook()
-            contact_book.populate(["name", "profile_id", "uri"], contact_list)
+
+            # Write the data belonging to the profiles being researched
+            for contact in profile_list:
+                contact_book.write_row([contact["name"], contact["profile_id"], contact["uri"]], bold=True)
+
+            # Write an empty row
+            contact_book.write_row(["", "", ""], bold=False)
+
+            # Write the actual contacts
+            contact_book.write_contacts(["name", "profile_id", "uri"], contact_list)
             file_path = os.path.realpath(file_path)
             contact_book.save(file_path)
 
@@ -102,7 +121,19 @@ class ContactWorkbook(object):
         self.num_rows = self.current_sheet.max_row
         self.num_cols = self.current_sheet.max_column
 
-    def populate(self, headers, contact_list):
+    def write_row(self, data_list, bold=False):
+        font = Font(name="Calibri", size=11, bold=bold)
+
+        def styled_cells(data):
+            for col_nr, elem in enumerate(data):
+                col_letter = get_column_letter(col_nr + 1)
+                cell = Cell(self.current_sheet, column=col_letter, row=1, value=elem)
+                cell.font = font
+                yield cell
+
+        self.current_sheet.append(styled_cells(data_list))
+
+    def write_contacts(self, headers, contact_list):
         # Print the headers
         self.current_sheet.append(headers)
 
@@ -123,6 +154,8 @@ class SocialMedium(object):
                  'Chrome/7.0.517.41 Safari/534.7'
 
     def __init__(self, user_name, password):
+        self.name = ""
+        self.url = "https://www.facebook.com/{0}".format(user_name)
         self.user_name = user_name
         self.password = password
         self.browser = mechanize.Browser()
@@ -152,7 +185,7 @@ class SocialMedium(object):
         logger.debug("Building contact list.")
 
         rolodex = Rolodex(self.browser, self.login_id, self.start_time,
-                          profile_name)  # TODO: Write Singleton wrapper (Sessiion) for browser instead of passing around. You can put multiple fields in Session, so you don't have to pass them around either
+                          profile_name)  # TODO: Write Singleton wrapper (Session) for browser instead of passing around. You can put multiple fields in Session, so you don't have to pass them around either
 
         logger.debug("Browsing contact list.")
 
@@ -182,11 +215,14 @@ class SocialMedium(object):
         contact_set_id2 = set(contact_ids_id2)
         mutual_contacts = contact_set_id1.intersection(contact_set_id2)
 
+        # The first two elements of the mutual contact list are the profiles themselves of which we are
+        # retrieving mutual contacts
+        mutual_contact_list = [contacts_list_id1[0], contacts_list_id2[0]]
+
         # For each ID in the intersection, obtain the original entry in the original dictionary
         # TODO: Understand how this really works
         logger.debug("Creating mutual contacts list.")
 
-        mutual_contact_list = []
         for contact in mutual_contacts:
             entry = (item for item in contacts_list_id1 if item['profile_id'] == contact).next()
             mutual_contact_list.append(entry)
@@ -196,10 +232,11 @@ class SocialMedium(object):
         return mutual_contact_list
 
     def _extract_login_data(self, html):
-        pattern = re.compile("\"ACCOUNT_ID\":\"(\d+?)\"")
+        pattern = re.compile("\"ACCOUNT_ID\":\"(\d+?)\",\"NAME\":\"(.+?)\"")
         match = pattern.search(html)
         if match:
             self.login_id = match.groups()[0]
+            self.name = match.groups()[1]
 
         pattern = re.compile("\"startTime\":(\d+?),")
         match = pattern.search(html)
@@ -211,10 +248,13 @@ class Rolodex(object):
     def __init__(self, browser, login_id, start_time, profile_name):
         logger.debug("Creating rolodex.")
 
-        self.browser = browser
+        self.name = "name N\A"
+        self.profile_name = profile_name
         self.login_id = login_id
+        self.browser = browser
         self.start_time = start_time
-        self.contact_url = 'https://www.facebook.com/{0}/friends'.format(profile_name)
+        self.base_url = 'https://www.facebook.com/{0}'.format(profile_name)
+        self.contact_url = self.base_url + '/friends'
         self._page_number = 1
 
         logger.debug("Rolodex created.")
@@ -238,7 +278,7 @@ class Rolodex(object):
             contacts = self.extract_contacts_from_html(page)
 
             logger.debug("Attempt to extract contacts. Moving on.")
-        else:
+        elif self._page_number > 1 and self.contact_url is not None:
             logger.debug("Opening browser to get next page.")
 
             page = self.browser.open(self.contact_url).read().decode('unicode_escape')
@@ -253,8 +293,7 @@ class Rolodex(object):
             contacts = self.extract_contacts_from_script(page)
 
             logger.debug("Next page retrieved.")
-
-        if self.contact_url is None:
+        elif self.contact_url is None:
             logger.debug("The contact URL is None. Stop iterations.")
             raise StopIteration
 
@@ -380,6 +419,19 @@ class Rolodex(object):
 
         contacts = []
         soup = BeautifulSoup(html, "html5lib")
+
+        logger.debug("Trying to find all <title> elements in the retrieved HTML.")
+
+        selection = soup.find_all('title')
+        for nr, item in enumerate(selection):
+            try:
+                if item.attrs['id'] == "pageTitle":
+                    self.name = item.contents[0]
+            except:
+                continue
+
+        # First element of the contact list is the profile itself of which we are retrieving contacts
+        contacts.append({"name": self.name, "uri": self.base_url, "profile_id": self.profile_name})
 
         logger.debug("Trying to find all <code> elements in the retrieved HTML.")
 
