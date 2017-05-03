@@ -44,8 +44,14 @@ class Crawler(object):
         if social_media == "FACEBOOK":
             self._current_session = SocialMedium(user_name, password)  # TODO: Change name SocialMedium man...
 
-    def get_contacts_file(self, profile_id, file_format, file_path):  # TODO Return file handle instead of path
-        contact_list = self._current_session.get_contact_list(profile_id)
+    def get_contacts_file(self, profile_id, file_format, file_path, progress_callback=None):  # TODO Return file handle instead of path
+        # contact_list = self._current_session.get_contact_list(profile_id)
+        total_num_contacts = self._current_session.num_contacts(profile_id)
+
+        for contact_list in self._current_session.get_contact_list(profile_id):
+            progress = int((len(contact_list) / float(total_num_contacts)) * 100)
+            print "PROGRESS = {0}".format(progress)
+            progress_callback(progress)
 
         return self._list_to_file(contact_list[:1], contact_list[1:], file_format, file_path)
 
@@ -181,23 +187,27 @@ class SocialMedium(object):
     def logout(self):
         self.browser.close()
 
+    def num_contacts(self, profile_name):
+        rolodex = Rolodex(self.browser, self.login_id, self.start_time, profile_name)  # TODO: Write Singleton wrapper (Session) for browser instead of passing around. You can put multiple fields in Session, so you don't have to pass them around either
+        return rolodex.num_items()
+
     def get_contact_list(self, profile_name):
         contact_list = []
 
         logger.debug("Building contact list.")
 
-        rolodex = Rolodex(self.browser, self.login_id, self.start_time,
-                          profile_name)  # TODO: Write Singleton wrapper (Sessiion) for browser instead of passing around. You can put multiple fields in Session, so you don't have to pass them around either
+        rolodex = Rolodex(self.browser, self.login_id, self.start_time, profile_name)  # TODO: Write Singleton wrapper (Session) for browser instead of passing around. You can put multiple fields in Session, so you don't have to pass them around either
 
         logger.debug("Browsing contact list.")
 
         for page_nr, page_list in enumerate(rolodex):
             logger.debug("Page {0}.".format(page_nr + 1))
             contact_list.extend(page_list)
+            yield contact_list
 
-        logger.debug("Finished going through rolodex. Returning contact list.")
+        # logger.debug("Finished going through rolodex. Returning contact list.")
 
-        return contact_list
+        # return contact_list
 
     def get_mutual_contact_list(self, profile_id1, profile_id2):
         # Get two dictionaries representing the contact lists of both accounts
@@ -260,6 +270,9 @@ class Rolodex(object):
         self._page_number = 1
 
         logger.debug("Rolodex created.")
+
+    def num_items(self):
+        return 173
 
     def __iter__(self):
         return self
