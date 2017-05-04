@@ -22,8 +22,6 @@ __project__ = "prj_socialdata_backend"
 logger = logging.getLogger(__name__)
 
 
-# Test for git REMOVE ME
-
 class SocialMedia(Enum):
     ALL = 0
     FACEBOOK = 1
@@ -44,16 +42,34 @@ class Crawler(object):
         if social_media == "FACEBOOK":
             self._current_session = SocialMedium(user_name, password)  # TODO: Change name SocialMedium man...
 
-    def get_contacts_file(self, profile_id, file_format, file_path, progress_callback=None):  # TODO Return file handle instead of path
-        # contact_list = self._current_session.get_contact_list(profile_id)
+    def get_contacts_file(self, profile_id, file_format, file_path,
+                          progress_callback=None):  # TODO Return file handle instead of path
+        max_percentage = 90
+
         total_num_contacts = self._current_session.num_contacts(profile_id)
 
-        for contact_list in self._current_session.get_contact_list(profile_id):
-            progress = int((len(contact_list) / float(total_num_contacts)) * 100)
-            print "PROGRESS = {0}".format(progress)
-            progress_callback(progress)
+        logger.debug("Total number of contacts found: {0}.".format(total_num_contacts))
 
-        return self._list_to_file(contact_list[:1], contact_list[1:], file_format, file_path)
+        for contact_list in self._current_session.get_contact_list(profile_id):
+            progress = int(((len(contact_list) - 1) / float(
+                total_num_contacts)) * max_percentage)  # TODO: we still have to make a file so this should not be 100% already
+            logger.debug("Calculating progress...{0}%.".format(progress))
+
+            try:
+                progress_callback(progress)
+            except:
+                # Command line mode will get us here
+                pass
+
+        file_path = self._list_to_file(contact_list[:1], contact_list[1:], file_format, file_path)
+
+        try:
+            progress_callback(100)
+        except:
+            # Command line mode will get us here
+            pass
+
+        return file_path
 
     def get_mutual_contacts_file(self, profile_id1, profile_id2, file_format,
                                  file_path):  # TODO Return file handle instead of path
@@ -188,15 +204,17 @@ class SocialMedium(object):
         self.browser.close()
 
     def num_contacts(self, profile_name):
-        rolodex = Rolodex(self.browser, self.login_id, self.start_time, profile_name)  # TODO: Write Singleton wrapper (Session) for browser instead of passing around. You can put multiple fields in Session, so you don't have to pass them around either
-        return rolodex.num_items()
+        rolodex = Rolodex(self.browser, self.login_id, self.start_time,
+                          profile_name)  # TODO: Write Singleton wrapper (Session) for browser instead of passing around. You can put multiple fields in Session, so you don't have to pass them around either
+        return rolodex.num_entries()
 
     def get_contact_list(self, profile_name):
         contact_list = []
 
         logger.debug("Building contact list.")
 
-        rolodex = Rolodex(self.browser, self.login_id, self.start_time, profile_name)  # TODO: Write Singleton wrapper (Session) for browser instead of passing around. You can put multiple fields in Session, so you don't have to pass them around either
+        rolodex = Rolodex(self.browser, self.login_id, self.start_time,
+                          profile_name)  # TODO: Write Singleton wrapper (Session) for browser instead of passing around. You can put multiple fields in Session, so you don't have to pass them around either
 
         logger.debug("Browsing contact list.")
 
@@ -205,9 +223,9 @@ class SocialMedium(object):
             contact_list.extend(page_list)
             yield contact_list
 
-        # logger.debug("Finished going through rolodex. Returning contact list.")
+            # logger.debug("Finished going through rolodex. Returning contact list.")
 
-        # return contact_list
+            # return contact_list
 
     def get_mutual_contact_list(self, profile_id1, profile_id2):
         # Get two dictionaries representing the contact lists of both accounts
@@ -271,8 +289,41 @@ class Rolodex(object):
 
         logger.debug("Rolodex created.")
 
-    def num_items(self):
-        return 173
+    def num_entries(self):
+        num_entries = 1
+
+        logger.debug("Retrieving number of entries in rolodex.")
+
+        html = self.browser.open(self.base_url).read()
+
+        soup = BeautifulSoup(html, "html5lib")
+
+        logger.debug("Trying to find all <span> elements in the retrieved HTML.")
+
+        selection = soup.find_all('code')
+        for nr, item in enumerate(selection):
+            logger.debug("Analyzing <span> element #{0}".format(nr))
+
+            if len(item.contents) > 0:
+                logger.debug("The item contents has length > 0. Attempting to pattern match.")
+
+                comment = item.contents[0]
+
+                # logger.debug("Contents of item.contents[0] == {0}".format(comment))
+
+                results = BeautifulSoup(comment, "html5lib").find_all('a', {"class": "_39g5",
+                                                                            "href": re.compile(
+                                                                                'http.+facebook\.com/.+friends.*')})
+
+                logger.debug("Results came in...")
+                logger.debug("Length of results: {0}".format(len(results)))
+
+                for result_nr, elem in enumerate(results):
+                    logger.debug("Match! Processing result #{0}".format(result_nr))
+                    num_entries = re.search(r'(\d+)', elem.contents[0]).group(1)
+                    return int(num_entries)
+
+        return int(num_entries)
 
     def __iter__(self):
         return self
@@ -285,14 +336,17 @@ class Rolodex(object):
 
             logger.debug("First page retrieved (HTML).")
 
-            self.contact_url = self.compose_url_from_html(page)
+            self.contact_url = self._compose_url_from_html(page)
 
             logger.debug("Attempt to construct contact URL finished.")
             logger.debug("Attempting to extract contacts from HTML.")
 
-            contacts = self.extract_contacts_from_html(page)
+            contacts = self._extract_contacts_from_html(page)
 
             logger.debug("Attempt to extract contacts. Moving on.")
+        elif self._page_number > 1 and self.contact_url is None:
+            logger.debug("The contact URL is None. Stop iterations.")
+            raise StopIteration
         else:
             logger.debug("Opening browser to get next page.")
 
@@ -300,23 +354,19 @@ class Rolodex(object):
 
             logger.debug("Next page retrieved (Javascript).")
 
-            self.contact_url = self.compose_url_from_script(page)
+            self.contact_url = self._compose_url_from_script(page)
 
             logger.debug("Attempt to construct contact URL finished.")
             logger.debug("Attempting to extract contacts from Javascript.")
 
-            contacts = self.extract_contacts_from_script(page)
+            contacts = self._extract_contacts_from_script(page)
 
             logger.debug("Next page retrieved.")
-
-        if self.contact_url is None:
-            logger.debug("The contact URL is None. Stop iterations.")
-            raise StopIteration
 
         self._page_number += 1
         return contacts
 
-    def compose_url_from_html(self, html):
+    def _compose_url_from_html(self, html):
         soup = BeautifulSoup(html, "html5lib")
 
         logger.debug("Trying to find all <script> elements in the retrieved HTML.")
@@ -376,7 +426,7 @@ class Rolodex(object):
 
         return composed_url
 
-    def compose_url_from_script(self, script):  # DRY !
+    def _compose_url_from_script(self, script):  # DRY !
         logger.debug("Trying to match pattern in the retrieved Javascript.")
 
         pattern = re.compile(
@@ -423,7 +473,7 @@ class Rolodex(object):
 
         return composed_url
 
-    def extract_contacts_from_html(self, html):
+    def _extract_contacts_from_html(self, html):
         # Debug code for timeout bug TODO
         logger.debug("Attempting to extract contacts from HTML.")
         file_path = '/var/tmp/' + time.strftime("%Y%m%d-%H%M%S") + '_html.txt'
