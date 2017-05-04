@@ -114,14 +114,16 @@ class CrawlerTool(CommandLineTool):
 
         network = None
         if self.vargs['n'] == "facebook":
-            network = crawler.SocialMedia.FACEBOOK
+            network = "FACEBOOK"
+            # network = crawler.SocialMedia.FACEBOOK
         elif self.vargs['n'] == "linkedin":
-            network = crawler.SocialMedia.LINKEDIN
+            network = "LINKEDIN"
+            # network = crawler.SocialMedia.LINKEDIN
 
         # TODO: Data validation? Or does argparse take care of it already?
 
         self.socialcrawler.open_session(network, self.vargs["u"], self.vargs["p"])
-        contacts_file = self.socialcrawler.get_contacts_file(self.vargs["profile"], crawler.FileFormat.EXCEL, './contacts.xlsx')
+        contacts_file = self.socialcrawler.get_contacts_file(self.vargs["profile"], "EXCEL", './contacts.xlsx')
 
         if contacts_file is not None:
             print "Contacts file available at '{0}'.".format(contacts_file)
