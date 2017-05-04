@@ -67,16 +67,58 @@ class Crawler(object):
             progress_callback(100)
         except:
             # Command line mode will get us here
-            pass
+            print "Calculating progress...{0}%.".format(progress)
 
         return file_path
 
-    def get_mutual_contacts_file(self, profile_id1, profile_id2, file_format,
-                                 file_path):  # TODO Return file handle instead of path
+    def get_mutual_contacts_file(self, profile_id1, profile_id2, file_format, file_path,
+                                 progress_callback=None):  # TODO Return file handle instead of path
+        # contact_list = self._current_session.get_mutual_contact_list(profile_id1, profile_id2)
+        num_contacts1 = self._current_session.num_contacts(profile_id1)
 
-        contact_list = self._current_session.get_mutual_contact_list(profile_id1, profile_id2)
+        try:
+            progress_callback(5)
+        except:
+            # Command line mode will get us here
+            pass
 
-        return self._list_to_file(contact_list[:2], contact_list[2:], file_format, file_path)
+        num_contacts2 = self._current_session.num_contacts(profile_id2)
+
+        try:
+            base_progress = 10
+            progress_callback(base_progress)
+        except:
+            # Command line mode will get us here
+            pass
+
+        total_num_contacts = num_contacts1 + num_contacts2
+
+        max_percentage = 80
+        current_progress = base_progress
+        for contact_list in self._current_session.get_mutual_contact_list(profile_id1, profile_id2):
+            progress = base_progress + int(
+                ((len(contact_list) - 2) / float(total_num_contacts)) * max_percentage)  # -2?
+
+            if progress > current_progress:
+                current_progress = progress
+
+            logger.debug("Calculating progress...{0}%.".format(current_progress))
+
+            try:
+                progress_callback(current_progress)
+            except:
+                # Command line mode will get us here
+                print "Calculating progress...{0}%.".format(current_progress)
+
+        file_path = self._list_to_file(contact_list[:2], contact_list[2:], file_format, file_path)
+
+        try:
+            progress_callback(100)
+        except:
+            # Command line mode will get us here
+            print "Calculating progress...{0}%.".format(100)
+
+        return file_path
 
     def close_session(self):
         self._current_session.logout()
@@ -223,16 +265,15 @@ class SocialMedium(object):
             contact_list.extend(page_list)
             yield contact_list
 
-            # logger.debug("Finished going through rolodex. Returning contact list.")
-
-            # return contact_list
-
     def get_mutual_contact_list(self, profile_id1, profile_id2):
         # Get two dictionaries representing the contact lists of both accounts
         logger.debug("Building contact list for ID1.")
-        contacts_list_id1 = self.get_contact_list(profile_id1)
+        for contacts_list_id1 in self.get_contact_list(profile_id1):
+            yield contacts_list_id1
+
         logger.debug("Building contact list for ID2.")
-        contacts_list_id2 = self.get_contact_list(profile_id2)
+        for contacts_list_id2 in self.get_contact_list(profile_id2):
+            yield contacts_list_id1 + contacts_list_id2
 
         # Extract the profile IDs of both contact lists
         logger.debug("Extracting profile IDs.")
@@ -241,8 +282,8 @@ class SocialMedium(object):
 
         # Make an intersection of the profile IDs
         logger.debug("Calculating intersection.")
-        contact_set_id1 = set(contact_ids_id1)
-        contact_set_id2 = set(contact_ids_id2)
+        contact_set_id1 = set(contact_ids_id1[1:])
+        contact_set_id2 = set(contact_ids_id2[1:])
         mutual_contacts = contact_set_id1.intersection(contact_set_id2)
 
         # The first two elements of the mutual contact list are the profiles themselves of which we are
@@ -259,7 +300,7 @@ class SocialMedium(object):
 
         logger.debug("Returning mutual contact list.")
 
-        return mutual_contact_list
+        yield mutual_contact_list
 
     def _extract_login_data(self, html):
         pattern = re.compile("\"ACCOUNT_ID\":\"(\d+?)\",\"NAME\":\"(.+?)\"")
@@ -539,9 +580,9 @@ class Rolodex(object):
                         # No profile found. The profile could be a follower not a friend.
                         pass
 
-                    # logger.debug(
-                    #     "Elements extracted: name == {0}, profile_id == {1}, uri == {2}".format(elem.contents[0],
-                    #                                                                             profile_id, link))
+                        # logger.debug(
+                        #     "Elements extracted: name == {0}, profile_id == {1}, uri == {2}".format(elem.contents[0],
+                        #                                                                             profile_id, link))
         logger.debug("Returning contacts.")
 
         return contacts
