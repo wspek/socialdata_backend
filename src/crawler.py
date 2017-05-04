@@ -524,25 +524,29 @@ class Rolodex(object):
 
                     link = elem.attrs['href'].replace("\\", "")
                     try:  # First try to see if the id is hidden in the url, like https://www.facebook.com/profile.php?id=100005592845863
-                        profile_id = re.search(r'profile\.php\?id=(.*?)&', link).group(1)
-                    except AttributeError as e:  # Else the id is not a number but a string
-                        profile_id = re.search(r'\.facebook\.com/(.*)\?', link).group(1)
+                        profile_id = re.search(r'profile\.php\?id=(.*?)&.*hc_location=friends_tab', link).group(1)
+                        contacts.append({"name": elem.contents[0], "uri": link, "profile_id": profile_id})
+                        logger.debug("Profile_id '{0}' appended to contact list".format(profile_id))
+                        continue
+                    except AttributeError as e:
+                        pass  # Fallback to the next try
+
+                    try:  # Else the id is not a number but a string
+                        profile_id = re.search(r'\.facebook\.com/(.*)\?.*hc_location=friends_tab', link).group(1)
+                        contacts.append({"name": elem.contents[0], "uri": link, "profile_id": profile_id})
+                        logger.debug("Profile_id '{0}' appended to contact list".format(profile_id))
+                    except AttributeError as e:
+                        # No profile found. The profile could be a follower not a friend.
+                        pass
 
                     # logger.debug(
                     #     "Elements extracted: name == {0}, profile_id == {1}, uri == {2}".format(elem.contents[0],
                     #                                                                             profile_id, link))
-
-                    logger.debug("profile_id: {0}".format(profile_id))
-
-                    contacts.append({"name": elem.contents[0], "uri": link, "profile_id": profile_id})
-
-                    logger.debug("Appended to contact list.")
-
         logger.debug("Returning contacts.")
 
         return contacts
 
-    def extract_contacts_from_script(self, script):
+    def _extract_contacts_from_script(self, script):
         # Debug code for timeout bug TODO
         logger.debug("Attempting to extract contacts from Javascript.")
         file_path = '/var/tmp/' + time.strftime("%Y%m%d-%H%M%S") + '_js.txt'
@@ -567,6 +571,10 @@ class Rolodex(object):
             for result_nr, elem in enumerate(results):
                 logger.debug("Match! Processing result #{0}".format(result_nr))
 
+                # TODO: This code is not specific enough. When there are followers, the code below
+                # will also succeed, even though it should not. For now the function _extract_contacts_from_html
+                # takes care of never even ending up here, because with only followers a contact_url for the
+                # next page (i.e. ending up here) cannot be formed. But it is not water tight.
                 link = elem.attrs['href'].replace("\\", "")
                 try:  # First try to see if the id is hidden in the url, like https://www.facebook.com/profile.php?id=100005592845863
                     profile_id = re.search(r'profile\.php\?id=(.*?)&', link).group(1)
