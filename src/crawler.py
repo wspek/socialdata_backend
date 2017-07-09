@@ -419,8 +419,18 @@ class Rolodex(object):
             if len(script.contents) > 0:
                 logger.debug("The script has length > 0. Attempting to pattern match.")
 
-                pattern = re.compile(
-                    "TimelineAppCollection\",\"enableContentLoader\",.*\"pagelet_timeline_app_collection_(.*?)\".*?\},\"(.*?)\"")
+                pattern2 = re.compile("pagelet_token:\"(.*)\",tab_key:\"friends\",lst:\"(\d+?):(\d+?):(\d+?)\"")
+                match2 = pattern2.search(script.contents[0])
+                if match2:
+                    lst = []
+                    self.pagelet_token = match2.groups()[0]
+                    lst.append(match2.groups()[1])
+                    lst.append(match2.groups()[2])
+                    lst.append(match2.groups()[3])
+
+                    continue
+
+                pattern = re.compile("TimelineAppCollection\",\"enableContentLoader\",.*\"pagelet_timeline_app_collection_(.*?)\".*?\},\"(.*?)\"")
                 match = pattern.search(script.contents[0])
                 if match:
                     logger.debug("The pattern matched: match.groups()[0] == {0}".format(match.groups()[0]))
@@ -432,6 +442,7 @@ class Rolodex(object):
                     logger.debug(
                         "profile_id == {0}, research_id == {1}, number == {2}".format(profile_id, research_id, number))
                     logger.debug("Breaking out of loop")
+
                     break
         else:
             logger.debug("Finished go through script without finding matches.")
@@ -439,29 +450,53 @@ class Rolodex(object):
             return None
 
         composed_url = \
-            'https://www.facebook.com/ajax/pagelet/generic.php/AllFriendsAppCollectionPagelet?' \
-            'dpr=1&data=%7B%22collection_token%22%3A%22' \
-            '{0}' \
+            'https://www.facebook.com/ajax/pagelet/generic.php/' \
+            'AllFriendsAppCollectionPagelet?' \
+            'dpr=1&data=%7B%22collection_token' \
+            '%22%3A%22' \
+            '{profile_id}' \
             '%3A' \
-            '{1}' \
+            '{research_id}' \
             '%3A' \
-            '{2}' \
-            '%22%2C%22cursor%22%3A%22' \
-            '{3}' \
-            '%3D%22%2C%22tab_key%22%3A%22friends%22%2C%22profile_id%22%3A' \
-            '{4}' \
-            '%2C%22overview%22%3Afalse%2C%22lst%22%3A%22' \
-            '{5}' \
+            '{number}' \
+            '%22%2C%22' \
+            'cursor' \
+            '%22%3A%22' \
+            '{cursor}' \
+            '%3D%22%2C%22' \
+            'disablepager' \
+            '%22%3A' \
+            'false' \
+            '%2C%22' \
+            'overview' \
+            '%22%3A' \
+            'false' \
+            '%2C%22' \
+            'profile_id' \
+            '%22%3A%22' \
+            '{profile_id}' \
+            '%22%2C%22' \
+            'pagelet_token' \
+            '%22%3A%22' \
+            '{pagelet_token}' \
+            '%22%2C%22' \
+            'tab_key' \
+            '%22%3A%22' \
+            'friends' \
+            '%22%2C%22' \
+            'lst' \
+            '%22%3A%22' \
+            '{login_id}' \
             '%3A' \
-            '{6}' \
+            '{profile_id}' \
             '%3A' \
-            '{7}' \
+            '{start_time}' \
             '%22%2C%22ftid%22%3Anull%2C%22order%22%3Anull%2C%22sk%22%3A%22' \
             'friends%22%2C%22importer_state%22%3Anull%7D&' \
-            '__user={8}' \
+            '__user={login_id}' \
             '&__a=&__dyn=&__af=i0&__req=&__be=-1&__pc=PHASED%3ADEFAULT&__rev=' \
-                .format(profile_id, research_id, number, cursor, profile_id, self.login_id, profile_id, self.start_time,
-                        self.login_id)
+                .format(profile_id=profile_id, research_id=research_id, number=number, cursor=cursor,
+                        login_id=self.login_id, start_time=self.start_time, pagelet_token=self.pagelet_token)
 
         logger.debug("URL for next iteration composed.")
 
@@ -470,8 +505,7 @@ class Rolodex(object):
     def _compose_url_from_script(self, script):  # DRY !
         logger.debug("Trying to match pattern in the retrieved Javascript.")
 
-        pattern = re.compile(
-            "TimelineAppCollection\",\"enableContentLoader\",.*\"pagelet_timeline_app_collection_(.*?)\".*?\},\"(.*?)\"")
+        pattern = re.compile("TimelineAppCollection\",\"enableContentLoader\",.*\"pagelet_timeline_app_collection_(.*?)\".*?\},\"(.*?)\"")
         match = pattern.search(script)
         if match:
             logger.debug("The pattern matched: match.groups()[0] == {0}".format(match.groups()[0]))
@@ -481,34 +515,57 @@ class Rolodex(object):
             cursor = match.groups()[1]
 
             logger.debug("profile_id == {0}, research_id == {1}, number == {2}".format(profile_id, research_id, number))
-
         else:
             return None
 
         composed_url = \
-            'https://www.facebook.com/ajax/pagelet/generic.php/AllFriendsAppCollectionPagelet?' \
-            'dpr=1&data=%7B%22collection_token%22%3A%22' \
-            '{0}' \
+            'https://www.facebook.com/ajax/pagelet/generic.php/' \
+            'AllFriendsAppCollectionPagelet?' \
+            'dpr=1&data=%7B%22collection_token' \
+            '%22%3A%22' \
+            '{profile_id}' \
             '%3A' \
-            '{1}' \
+            '{research_id}' \
             '%3A' \
-            '{2}' \
-            '%22%2C%22cursor%22%3A%22' \
-            '{3}' \
-            '%3D%22%2C%22tab_key%22%3A%22friends%22%2C%22profile_id%22%3A' \
-            '{4}' \
-            '%2C%22overview%22%3Afalse%2C%22lst%22%3A%22' \
-            '{5}' \
+            '{number}' \
+            '%22%2C%22' \
+            'cursor' \
+            '%22%3A%22' \
+            '{cursor}' \
+            '%3D%22%2C%22' \
+            'disablepager' \
+            '%22%3A' \
+            'false' \
+            '%2C%22' \
+            'overview' \
+            '%22%3A' \
+            'false' \
+            '%2C%22' \
+            'profile_id' \
+            '%22%3A%22' \
+            '{profile_id}' \
+            '%22%2C%22' \
+            'pagelet_token' \
+            '%22%3A%22' \
+            '{pagelet_token}' \
+            '%22%2C%22' \
+            'tab_key' \
+            '%22%3A%22' \
+            'friends' \
+            '%22%2C%22' \
+            'lst' \
+            '%22%3A%22' \
+            '{login_id}' \
             '%3A' \
-            '{6}' \
+            '{profile_id}' \
             '%3A' \
-            '{7}' \
+            '{start_time}' \
             '%22%2C%22ftid%22%3Anull%2C%22order%22%3Anull%2C%22sk%22%3A%22' \
             'friends%22%2C%22importer_state%22%3Anull%7D&' \
-            '__user={8}' \
+            '__user={login_id}' \
             '&__a=&__dyn=&__af=i0&__req=&__be=-1&__pc=PHASED%3ADEFAULT&__rev=' \
-                .format(profile_id, research_id, number, cursor, profile_id, self.login_id, profile_id, self.start_time,
-                        self.login_id)
+                .format(profile_id=profile_id, research_id=research_id, number=number, cursor=cursor,
+                        login_id=self.login_id, start_time=self.start_time, pagelet_token=self.pagelet_token)
 
         logger.debug("URL for next iteration composed.")
 
